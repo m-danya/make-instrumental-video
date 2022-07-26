@@ -1,0 +1,4 @@
+yt-dlp
+spleeter
+pillow
+shutup
