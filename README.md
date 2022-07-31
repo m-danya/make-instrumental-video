@@ -11,6 +11,10 @@ for every video (in every playlist) it does this:
 3. Runs [spleeter](https://github.com/deezer/spleeter) on this audio, getting an instrumental wav
 4. Runs [ffmpeg](https://github.com/FFmpeg/FFmpeg) to create static video from the instrumental wav (see 3) and the image (see 1)
 
+### Additional features
+- You can use a directory with mp3s as a source for songs with `--mp3-dir`
+- You can make mp3s instead of mp4s, just omit the cover image path
+
 ### Prerequisites
 
 1. python3.9
@@ -24,5 +28,5 @@ for every video (in every playlist) it does this:
 python3.9 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt 
-python3 main.py <links> <path_to_cover_image>
+python3 main.py <links_to_yt> --cover <path_to_cover_image>
 ```

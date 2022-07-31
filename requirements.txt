@@ -2,3 +2,5 @@ yt-dlp
 spleeter
 pillow
 shutup
+silence_tensorflow
+tqdm
