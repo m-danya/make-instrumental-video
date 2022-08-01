@@ -22,6 +22,9 @@ def main():
 
     save_as_mp3 = not cover
 
+    if save_as_mp3:
+        print("[WARNING] Cover not provided, so we're going to make mp3s.")
+
     output_dir_final = Path("output")
     output_dir_final.mkdir(exist_ok=True)
     template_img_path = Path("./template.png")
@@ -33,8 +36,19 @@ def main():
         # 1. Download yt videos and extract audios from them
         download_audios_from_youtube(links, output_dir_yt)
 
+        if args.let_me_filter_downloaded_videos:
+            print(
+                f"Downloading is finished, check the {output_dir_yt.resolve()}"
+            )
+            input("WAITING FOR FILTERING (press enter)")
+
         # 2. Run spleeter and leave instrumental only
-        spleeterize_and_clean(output_dir_yt, mp3s_path, output_dir_spleeter)
+        spleeterize_and_clean(
+            output_dir_yt,
+            mp3s_path,
+            output_dir_spleeter,
+            extract_instrumental=not args.vocals,
+        )
 
         # 3. Make mp3s or mp4s
         if save_as_mp3:
@@ -64,7 +78,9 @@ def download_audios_from_youtube(links, output_dir_yt):
         )
 
 
-def spleeterize_and_clean(output_dir_yt, mp3s_path, output_dir_spleeter):
+def spleeterize_and_clean(
+    output_dir_yt, mp3s_path, output_dir_spleeter, extract_instrumental
+):
     from spleeter.separator import Separator
 
     separator = Separator("spleeter:2stems")
@@ -76,13 +92,21 @@ def spleeterize_and_clean(output_dir_yt, mp3s_path, output_dir_spleeter):
             str(output_dir_spleeter),
             filename_format="{filename}_{instrument}.{codec}",
         )
-    # leave instrumentals only
+    # leave instrumentals only (or vocals only)
+
+    if extract_instrumental:
+        prefix_to_remove = "_vocals"
+        prefix_to_leave = "_accompaniment"
+    else:
+        prefix_to_remove = "_accompaniment"
+        prefix_to_leave = "_vocals"
+
     for audiofile in output_dir_spleeter.iterdir():
-        if audiofile.stem.endswith("_vocals"):
+        if audiofile.stem.endswith(prefix_to_remove):
             audiofile.unlink()
-        if audiofile.stem.endswith("_accompaniment"):
+        if audiofile.stem.endswith(prefix_to_leave):
             audiofile.rename(
-                audiofile.parent / audiofile.name.replace("_accompaniment", "")
+                audiofile.parent / audiofile.name.replace(prefix_to_leave, "")
             )
 
 
@@ -171,6 +195,19 @@ def parse_args():
             "path to a cover image. If not provided, the output is mp3s"
             " instead of mp4s"
         ),
+    )
+    parser.add_argument(
+        "--let-me-filter-downloaded-videos",
+        action="store_true",
+        help=(
+            "pause after downloading videos to allow deleting unwanted videos"
+            " (useful for playlists containing a video with a full album)"
+        ),
+    )
+    parser.add_argument(
+        "--vocals",
+        action="store_true",
+        help="extract vocals instead of an instrumental",
     )
     return parser.parse_args()
 
