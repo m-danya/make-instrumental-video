@@ -8,8 +8,10 @@ Given a list of links to some YouTube videos and a cover image, the script does 
 for every video (in every playlist) it does this:
 
 2. Downloads the video and extracts audio from it using [yt-dlp](https://github.com/yt-dlp/yt-dlp)
-3. Runs [spleeter](https://github.com/deezer/spleeter) on this audio, getting an instrumental wav
-4. Runs [ffmpeg](https://github.com/FFmpeg/FFmpeg) to create static video from the instrumental wav (see 3) and the image (see 1)
+3. Runs ~~[spleeter](https://github.com/deezer/spleeter)~~ [demucs](https://github.com/facebookresearch/demucs) on this 
+   audio, 
+   getting an instrumental
+4. Runs [ffmpeg](https://github.com/FFmpeg/FFmpeg) to create static video from the instrumental (see 3) and the image (see 1)
 
 ### Additional features
 - You can use a directory with mp3s as a source for songs with `--mp3-dir`

@@ -1,6 +1,6 @@
 yt-dlp
-spleeter
+demucs
 pillow
 shutup
-silence_tensorflow
 tqdm
+selenium

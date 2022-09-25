@@ -1,4 +1,5 @@
 import argparse
+import shutil
 import subprocess
 from itertools import chain
 from pathlib import Path
@@ -6,10 +7,7 @@ from PIL import Image
 import shutup
 import tempfile
 import os
-from silence_tensorflow import silence_tensorflow
 from tqdm import tqdm
-
-silence_tensorflow()
 
 shutup.please()
 
@@ -29,9 +27,9 @@ def main():
     output_dir_final.mkdir(exist_ok=True)
     template_img_path = Path("./template.png")
 
-    with tempfile.TemporaryDirectory() as tempdir_yt, tempfile.TemporaryDirectory() as tempdir_spleeter:
+    with tempfile.TemporaryDirectory() as tempdir_yt, tempfile.TemporaryDirectory() as tempdir_demucs:
         output_dir_yt = Path(tempdir_yt)
-        output_dir_spleeter = Path(tempdir_spleeter)
+        output_dir_demucs = Path(tempdir_demucs)
 
         # 1. Download yt videos and extract audios from them
         download_audios_from_youtube(links, output_dir_yt)
@@ -42,17 +40,17 @@ def main():
             )
             input("WAITING FOR FILTERING (press enter)")
 
-        # 2. Run spleeter and leave instrumental only
-        spleeterize_and_clean(
+        # 2. Run demucs and leave instrumental only
+        demucsify_and_clean(
             output_dir_yt,
             mp3s_path,
-            output_dir_spleeter,
+            output_dir_demucs,
             extract_instrumental=not args.vocals,
         )
 
         # 3. Make mp3s or mp4s
         if save_as_mp3:
-            make_mp3s(output_dir_final, output_dir_spleeter)
+            just_move_mp3s(output_dir_final, output_dir_demucs)
         else:
             # 3.1 Make the image for video from cover
             preview_path = make_cover_image(
@@ -60,7 +58,7 @@ def main():
             )
 
             # 3.2. Make a video
-            make_mp4s(output_dir_final, output_dir_spleeter, preview_path)
+            make_mp4s(output_dir_final, output_dir_demucs, preview_path)
 
 
 def download_audios_from_youtube(links, output_dir_yt):
@@ -78,54 +76,53 @@ def download_audios_from_youtube(links, output_dir_yt):
         )
 
 
-def spleeterize_and_clean(
-    output_dir_yt, mp3s_path, output_dir_spleeter, extract_instrumental
+def demucsify_and_clean(
+    output_dir_yt, mp3s_path, output_dir_demucs, extract_instrumental
 ):
-    from spleeter.separator import Separator
-
-    separator = Separator("spleeter:2stems")
-    for audiofile in chain(
-        output_dir_yt.iterdir(), mp3s_path.iterdir() if mp3s_path else []
-    ):
-        separator.separate_to_file(
-            str(audiofile),
-            str(output_dir_spleeter),
-            filename_format="{filename}_{instrument}.{codec}",
-        )
-    # leave instrumentals only (or vocals only)
-
-    if extract_instrumental:
-        prefix_to_remove = "_vocals"
-        prefix_to_leave = "_accompaniment"
-    else:
-        prefix_to_remove = "_accompaniment"
-        prefix_to_leave = "_vocals"
-
-    for audiofile in output_dir_spleeter.iterdir():
-        if audiofile.stem.endswith(prefix_to_remove):
-            audiofile.unlink()
-        if audiofile.stem.endswith(prefix_to_leave):
-            audiofile.rename(
-                audiofile.parent / audiofile.name.replace(prefix_to_leave, "")
-            )
-
-
-def make_mp3s(output_dir_final, output_dir_spleeter):
     for audiofile in tqdm(
-        list(output_dir_spleeter.iterdir()), desc="making mp3s"
+        list(
+            chain(
+                output_dir_yt.iterdir(),
+                mp3s_path.iterdir() if mp3s_path else [],
+            )
+        ),
+        desc="running demucs",
     ):
         subprocess.run(
             [
-                "ffmpeg",
-                "-i",
-                audiofile,
-                "-acodec",
-                "libmp3lame",
-                output_dir_final / f"{audiofile.stem}.mp3",
-            ]
+                "demucs",
+                "--mp3",
+                "--two-stems=vocals",
+                str(audiofile),
+                "-o",
+                str(output_dir_demucs),
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
-        # remove the wav
-        audiofile.unlink()
+
+    # leave instrumentals only (or vocals only) and move them
+    # to the root directory
+
+    to_remove = "vocals.mp3" if extract_instrumental else "no_vocals.mp3"
+
+    for audiofile in output_dir_demucs.rglob("*.mp3"):
+        if audiofile.name == to_remove:
+            audiofile.unlink()
+        else:
+            audiofile.rename(
+                output_dir_demucs / (audiofile.parent.name + ".mp3")
+            )
+
+    for file_or_dir in output_dir_demucs.iterdir():
+        if file_or_dir.is_dir():
+            shutil.rmtree(file_or_dir)
+
+
+def just_move_mp3s(output_dir_final, output_dir_demucs):
+    for audiofile in output_dir_demucs.iterdir():
+        if audiofile.is_file():
+            audiofile.rename(output_dir_final / audiofile.name)
 
 
 def make_cover_image(cover, cover_output_dir, template_img_path):
@@ -141,9 +138,9 @@ def make_cover_image(cover, cover_output_dir, template_img_path):
     return preview_path
 
 
-def make_mp4s(output_dir_final, output_dir_spleeter, preview_path):
+def make_mp4s(output_dir_final, output_dir_demucs, preview_path):
     for audiofile in tqdm(
-        list(output_dir_spleeter.iterdir()), desc="making mp4s"
+        list(output_dir_demucs.iterdir()), desc="making mp4s"
     ):
         subprocess.run(
             [
@@ -214,3 +211,4 @@ def parse_args():
 
 if __name__ == "__main__":
     main()
+    os.system("cat desc.txt")
